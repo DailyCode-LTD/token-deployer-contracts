@@ -33,8 +33,23 @@ contract SimpleERC20 {
         _mint(msg.sender, initialSupply_);
     }
 
+    function _burn(address user_, uint256 amount_) internal {
+        require(
+            _balances[user_] >= amount_,
+            "SimpleERC20: burn amount exceeds balance"
+        );
+        unchecked {
+            _balances[user_] -= amount_;
+            _totalSupply -= amount_;
+        }
+        emit Transfer(user_, address(0), amount_);
+    }
+
     function _mint(address to_, uint256 value_) internal {
-        _balances[to_] += value_;
+        _totalSupply += value_;
+        unchecked {
+            _balances[to_] += value_;
+        }
         emit Transfer(address(0), to_, value_);
     }
 

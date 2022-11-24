@@ -34,7 +34,7 @@ describe("SimpleERC20", function () {
   });
 
   it("should have the right total supply", async function () {
-    expect(await this.simpleERC20.totalSupply()).to.equal(0);
+    expect(await this.simpleERC20.totalSupply()).to.equal(INITIAL_SUPPLY);
   });
 
   it("should have the right balance of the owner", async function () {
@@ -147,5 +147,16 @@ describe("SimpleERC20", function () {
           ADDRESS_1_TRANSFER_AMOUNT + 1n
         )
     ).be.revertedWith("insuficient balance");
+  });
+
+  it("should never reduce allowance when allowance is max uinbt256", async function () {
+    const [owner, alice] = await ethers.getSigners();
+    await this.simpleERC20.approve(alice.address, ethers.constants.MaxUint256);
+    await this.simpleERC20
+      .connect(alice)
+      .transferFrom(owner.address, alice.address, 1n * 10n ** DECIMALS);
+    expect(
+      await this.simpleERC20.allowance(owner.address, alice.address)
+    ).to.equal(ethers.constants.MaxUint256);
   });
 });
