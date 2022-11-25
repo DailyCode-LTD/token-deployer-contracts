@@ -95,8 +95,16 @@ contract SimpleERC20 {
     }
 
     function approve(address spender_, uint256 value_) external returns (bool) {
-        _allowances[msg.sender][spender_] = value_;
-        emit Approval(msg.sender, spender_, value_);
+        return _approve(msg.sender, spender_, value_);
+    }
+
+    function _approve(
+        address owner_,
+        address spender_,
+        uint256 value_
+    ) internal returns (bool) {
+        _allowances[owner_][spender_] = value_;
+        emit Approval(owner_, spender_, value_);
         return true;
     }
 
@@ -107,22 +115,29 @@ contract SimpleERC20 {
         return _allowances[owner_][spender_];
     }
 
+    function _beforeTransferFrom(
+        address spender_,
+        address from_,
+        uint256 value_
+    ) internal {
+        require(
+            _allowances[from_][spender_] >= value_,
+            "insuficient allowance"
+        );
+        unchecked {
+            if (_allowances[from_][spender_] != type(uint256).max) {
+                _allowances[from_][spender_] -= value_;
+            }
+        }
+    }
+
     function transferFrom(
         address from_,
         address to_,
         uint256 value_
     ) external virtual returns (bool) {
         // we check if sender is allowed to spend from_
-        require(
-            _allowances[from_][msg.sender] >= value_,
-            "insuficient allowance"
-        );
-
-        unchecked {
-            if (_allowances[from_][msg.sender] != type(uint256).max) {
-                _allowances[from_][msg.sender] -= value_;
-            }
-        }
+        _beforeTransferFrom(msg.sender, from_, value_);
 
         return _transfer(from_, to_, value_);
     }
