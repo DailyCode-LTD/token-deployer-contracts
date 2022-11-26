@@ -7,8 +7,9 @@ import "./interfaces/IFactory.sol";
 import "./interfaces/IRouter.sol";
 import "./interfaces/IERC20.sol";
 import "hardhat/console.sol";
+import "./MintableERC20.sol";
 
-contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
+abstract contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
     struct Tax {
         uint32 onBuy;
         uint32 onSell;
@@ -68,15 +69,12 @@ contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
     }
 
     constructor(
-        string memory name_,
-        string memory symbol_,
         uint8 decimals_,
-        uint256 initialSupply_,
         IRouter router_,
         IERC20 defaultPairToken_,
         Tax memory autoLiquidityTax_,
         Tax memory marketingTax_
-    ) SimpleERC20(name_, symbol_, decimals_, initialSupply_) {
+    ) {
         factory = IFactory(router_.factory());
         router = router_;
 
@@ -102,10 +100,16 @@ contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
         require(msg.sender == address(router), "only Router allowed");
     }
 
-    function transferOwnership(address newOwner_) external override onlyOwner {
+    function transferOwnership(
+        address newOwner_
+    ) external virtual override onlyOwner {
+        _transferOwnership(newOwner_);
+    }
+
+    function _transferOwnership(address newOwner_) internal virtual override {
         isExcludedFromTax[newOwner_] = TaxExempt(true, false);
         isExcludedFromTax[owner()] = TaxExempt(false, false);
-        _transferOwnership(newOwner_);
+        super._transferOwnership(newOwner_);
     }
 
     function setAutoLpReceiver(address receiver) external onlyOwner {
@@ -148,7 +152,7 @@ contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
     function transfer(
         address recipient,
         uint256 amount
-    ) public override returns (bool) {
+    ) public virtual override returns (bool) {
         bool exempt = isExcludedFromTax[msg.sender].from ||
             isExcludedFromTax[recipient].to;
         if (taxEnabled && !exempt)
@@ -161,7 +165,7 @@ contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
         address from_,
         address to_,
         uint256 amount_
-    ) public override returns (bool) {
+    ) public virtual override returns (bool) {
         bool exempt = isExcludedFromTax[from_].from ||
             isExcludedFromTax[to_].to;
         _beforeTransferFrom(msg.sender, from_, amount_);
@@ -320,6 +324,90 @@ contract LiquidityGeneratorERC20 is SimpleERC20, Ownable {
      */
     function setSwapEnabled(bool swapEnabled_) external onlyOwner {
         swapEnabled = swapEnabled_;
+    }
+}
+
+contract FixedSupplyLPGenerator is LiquidityGeneratorERC20 {
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_,
+        uint256 initalSupply,
+        IRouter router_,
+        IERC20 defaultPairToken_,
+        Tax memory autoLiquidityTax_,
+        Tax memory marketingTax_
+    )
+        LiquidityGeneratorERC20(
+            decimals_,
+            router_,
+            defaultPairToken_,
+            autoLiquidityTax_,
+            marketingTax_
+        )
+        SimpleERC20(name_, symbol_, decimals_, initalSupply)
+    {}
+}
+
+contract MintableLPGenerator is LiquidityGeneratorERC20, MintableERC20 {
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_,
+        uint256 initalSupply_,
+        IRouter router_,
+        IERC20 defaultPairToken_,
+        Tax memory autoLiquidityTax_,
+        Tax memory marketingTax_
+    )
+        LiquidityGeneratorERC20(
+            decimals_,
+            router_,
+            defaultPairToken_,
+            autoLiquidityTax_,
+            marketingTax_
+        )
+        MintableERC20(name_, symbol_, decimals_, initalSupply_)
+    {}
+
+    function transfer(
+        address recipient,
+        uint256 amount
+    ) public override(LiquidityGeneratorERC20, SimpleERC20) returns (bool) {
+        bool exempt = isExcludedFromTax[msg.sender].from ||
+            isExcludedFromTax[recipient].to;
+        if (taxEnabled && !exempt)
+            _customTransfer(msg.sender, recipient, amount);
+        else return _transfer(msg.sender, recipient, amount);
+        return true;
+    }
+
+    function transferFrom(
+        address from_,
+        address to_,
+        uint256 amount_
+    ) public override(LiquidityGeneratorERC20, SimpleERC20) returns (bool) {
+        bool exempt = isExcludedFromTax[from_].from ||
+            isExcludedFromTax[to_].to;
+        _beforeTransferFrom(msg.sender, from_, amount_);
+        if (taxEnabled && !exempt) _customTransfer(from_, to_, amount_);
+        else return _transfer(from_, to_, amount_);
+
+        return true;
+    }
+
+    function transferOwnership(
+        address newOwner_
+    ) external override(LiquidityGeneratorERC20, MintableERC20) onlyOwner {
+        _transferOwnership(newOwner_);
+    }
+
+    function _transferOwnership(
+        address newOwner_
+    ) internal virtual override(LiquidityGeneratorERC20, MintableERC20) {
+        isExcludedFromTax[newOwner_] = TaxExempt(true, false);
+        isExcludedFromTax[owner()] = TaxExempt(false, false);
+        super._transferOwnership(newOwner_);
     }
 }
 

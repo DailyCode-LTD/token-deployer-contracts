@@ -24,7 +24,7 @@ contract Ownable is IERC173 {
         _transferOwnership(newOwner_);
     }
 
-    function _transferOwnership(address newOwner_) internal onlyOwner {
+    function _transferOwnership(address newOwner_) internal virtual onlyOwner {
         require(
             newOwner_ != address(0),
             "Ownable: new owner is the zero address"

@@ -45,9 +45,13 @@ contract MintableERC20 is SimpleERC20, Ownable {
         return _minters[potentialMinter_];
     }
 
-    function transferOwnership(address newOwner_) external override {
+    function transferOwnership(address newOwner_) external virtual override {
+        _transferOwnership(newOwner_);
+    }
+
+    function _transferOwnership(address newOwner_) internal virtual override {
         _minters[newOwner_] = true;
         _minters[owner()] = false;
-        _transferOwnership(newOwner_);
+        super._transferOwnership(newOwner_);
     }
 }
